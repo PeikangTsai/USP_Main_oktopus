@@ -1,0 +1,58 @@
+{
+  "name": "material-kit-react",
+  "version": "3.0.0",
+  "author": "Devias",
+  "licence": "MIT",
+  "homepage": "https://devias.io",
+  "private": false,
+  "scripts": {
+    "dev": "next",
+    "build": "next build",
+    "start": "next start",
+    "export": "next export",
+    "lint": "next lint",
+    "lint-fix": "next lint --fix"
+  },
+  "overrides": {
+    "minimatch": "^10.2.2",
+    "brace-expansion": "^2.0.2",
+    "glob": "^11.0.0",
+    "rimraf": "^5.0.10",
+    "ajv": "^8.18.0"
+  },
+  "dependencies": {
+    "@emotion/cache": "11.10.5",
+    "@emotion/react": "11.10.6",
+    "@emotion/server": "11.10.0",
+    "@emotion/styled": "11.10.6",
+    "@heroicons/react": "2.0.16",
+    "@mui/lab": "5.0.0-alpha.120",
+    "@mui/material": "5.11.10",
+    "@mui/system": "5.11.9",
+    "@mui/x-date-pickers": "5.0.19",
+    "@react-google-maps/api": "^2.19.3",
+    "apexcharts": "^3.37.0",
+    "date-fns": "2.29.3",
+    "formik": "2.2.9",
+    "next": "^15.5.12",
+    "nprogress": "0.2.0",
+    "prop-types": "15.8.1",
+    "react": "^18.3.1",
+    "react-apexcharts": "^1.4.0",
+    "react-dom": "^18.3.1",
+    "simple-peer": "^9.11.1",
+    "simplebar-react": "^3.2.1",
+    "socket.io-client": "^4.6.2",
+    "styled-components": "^6.0.0-rc.3",
+    "yup": "1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "18.13.0",
+    "@types/nprogress": "0.2.0",
+    "@types/numeral": "2.0.2",
+    "@types/react": "18.0.28",
+    "@types/react-dom": "18.0.11",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^15.5.12"
+  }
+}

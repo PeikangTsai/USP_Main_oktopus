@@ -1,0 +1,2 @@
+- Abstracts all other mtps and cwmp/usp existence
+- Saves devices info and status
