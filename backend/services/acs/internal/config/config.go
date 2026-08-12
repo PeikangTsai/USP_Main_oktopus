@@ -62,6 +62,8 @@ func NewConfig() *Config {
 	acsRoute := flag.String("acs_route", lookupEnvOrString("ACS_ROUTE", "/acs"), "route for acs server")
 	connReqUser := flag.String("connrq_user", lookupEnvOrString("CONN_RQ_USER", ""), "Connection Request Username")
 	connReqPasswd := flag.String("connrq_passwd", lookupEnvOrString("CONN_RQ_PASSWD", ""), "Connection Request Password")
+	acsUsername := flag.String("acs_username", lookupEnvOrString("ACS_USERNAME", ""), "ACS Digest Auth Username (CPE -> ACS)")
+	acsPassword := flag.String("acs_password", lookupEnvOrString("ACS_PASSWORD", ""), "ACS Digest Auth Password (CPE -> ACS)")
 	acsKeepAliveInterval := flag.Int("acs_keep_alive_interval", lookupEnvOrInt("KEEP_ALIVE_INTERVAL", 300), "keep alive interval in seconds for acs server")
 	cwmpDebugMode := flag.Bool("debug_mode", lookupEnvOrBool("CWMP_DEBUG", false), "enable or disable cwmp logs in debug mode")
 	deviceAnswerTimeout := flag.Int("device_answer_timeout", lookupEnvOrInt("DEVICE_ANSWER_TIMEOUT", 10), "device answer timeout in seconds")
@@ -101,6 +103,8 @@ func NewConfig() *Config {
 		Acs: Acs{
 			Port:                *acsPort,
 			Route:               *acsRoute,
+			Username:            *acsUsername,
+			Password:            *acsPassword,
 			KeepAliveInterval:   time.Duration(*acsKeepAliveInterval) * time.Second,
 			DebugMode:           *cwmpDebugMode,
 			ConnReqUsername:     *connReqUser,

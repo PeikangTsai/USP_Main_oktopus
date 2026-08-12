@@ -98,6 +98,24 @@ func (i *CWMPInform) GetConnectionRequest() string {
 	return ""
 }
 
+func (i *CWMPInform) GetConnectionRequestUsername() string {
+	for idx := range i.ParameterList {
+		if strings.HasSuffix(i.ParameterList[idx].Name, "ManagementServer.ConnectionRequestUsername") {
+			return i.ParameterList[idx].Value
+		}
+	}
+	return ""
+}
+
+func (i *CWMPInform) GetConnectionRequestPassword() string {
+	for idx := range i.ParameterList {
+		if strings.HasSuffix(i.ParameterList[idx].Name, "ManagementServer.ConnectionRequestPassword") {
+			return i.ParameterList[idx].Value
+		}
+	}
+	return ""
+}
+
 func (i *CWMPInform) GetSoftwareVersion() string {
 	for idx := range i.ParameterList {
 		if strings.HasSuffix(i.ParameterList[idx].Name, "Device.DeviceInfo.SoftwareVersion") {

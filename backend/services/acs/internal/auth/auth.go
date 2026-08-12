@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -143,4 +144,65 @@ func H(data string) string {
 	digest := md5.New()
 	digest.Write([]byte(data))
 	return fmt.Sprintf("%x", digest.Sum(nil))
+}
+
+const digestRealm = "OktopusACS"
+
+// ParseDigestAuthRequest parses the Authorization header from an incoming HTTP request.
+func ParseDigestAuthRequest(r *http.Request) map[string]string {
+	s := strings.SplitN(r.Header.Get("Authorization"), " ", 2)
+	if len(s) != 2 || s[0] != "Digest" {
+		return nil
+	}
+	result := map[string]string{}
+	for _, kv := range strings.Split(s[1], ",") {
+		parts := strings.SplitN(kv, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		result[strings.Trim(parts[0], "\" ")] = strings.Trim(parts[1], "\" ")
+	}
+	return result
+}
+
+// ValidateDigestAuth validates an incoming request's Digest Authorization against expected credentials.
+func ValidateDigestAuth(r *http.Request, username, password string) bool {
+	params := ParseDigestAuthRequest(r)
+	if params == nil {
+		log.Printf("[ACS-Auth] No Digest Authorization header from %s", r.RemoteAddr)
+		return false
+	}
+	if params["username"] != username {
+		log.Printf("[ACS-Auth] Username mismatch from %s: got %q, expected %q", r.RemoteAddr, params["username"], username)
+		return false
+	}
+
+	HA1 := H(fmt.Sprintf("%s:%s:%s", username, params["realm"], password))
+	HA2 := H(fmt.Sprintf("%s:%s", r.Method, params["uri"]))
+	expected := H(strings.Join([]string{HA1, params["nonce"], params["nc"], params["cnonce"], params["qop"], HA2}, ":"))
+
+	if expected != params["response"] {
+		log.Printf("[ACS-Auth] Digest response mismatch from %s (user: %s)", r.RemoteAddr, params["username"])
+		return false
+	}
+
+	log.Printf("[ACS-Auth] Digest auth OK from %s (user: %s)", r.RemoteAddr, params["username"])
+	return true
+}
+
+// DigestAuthWrap wraps an http.HandlerFunc with HTTP Digest Authentication.
+func DigestAuthWrap(next http.HandlerFunc, username, password string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !ValidateDigestAuth(r, username, password) {
+			nonce := RandomKey()
+			opaque := RandomKey()
+			log.Printf("[ACS-Auth] Sending 401 Digest challenge to %s", r.RemoteAddr)
+			w.Header().Set("WWW-Authenticate",
+				fmt.Sprintf(`Digest realm="%s", qop="auth", nonce="%s", opaque="%s", algorithm=MD5`,
+					digestRealm, nonce, opaque))
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		next(w, r)
+	}
 }

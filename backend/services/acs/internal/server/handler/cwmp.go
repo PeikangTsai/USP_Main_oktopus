@@ -76,11 +76,15 @@ func (h *Handler) CwmpHandler(w http.ResponseWriter, r *http.Request) {
 				OUI:                  Inform.DeviceId.OUI,
 				Queue:                lane.NewQueue(),
 				DataModel:            Inform.GetDataModelType(),
+				Username:             Inform.GetConnectionRequestUsername(),
+				Password:             Inform.GetConnectionRequestPassword(),
 			}
 			h.pub(NATS_CWMP_SUBJECT_PREFIX+sn+".info", tmp)
 		}
 
-		cpe.ConnectionRequestURL = Inform.GetConnectionRequest() // Update connection request URL, in case the CPE changed IP
+		cpe.ConnectionRequestURL = Inform.GetConnectionRequest()
+		cpe.Username = Inform.GetConnectionRequestUsername()
+		cpe.Password = Inform.GetConnectionRequestPassword()
 
 		log.Printf("Received an Inform from device %s withEventCodes %s", addr, Inform.GetEvents())
 
@@ -150,12 +154,25 @@ func (h *Handler) CwmpHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ConnectionRequest(cpe CPE) error {
-	log.Println("--> ConnectionRequest, CPE: ", cpe.SerialNumber)
-	// log.Println("ConnectionRequestURL: ", cpe.ConnectionRequestURL)
-	// log.Println("ConnectionRequestUsername: ", cpe.Username)
-	// log.Println("ConnectionRequestPassword: ", cpe.Password)
+	username := cpe.Username
+	password := cpe.Password
+	// fall back to global config if CPE has no per-device credentials
+	if username == "" {
+		username = h.acsConfig.ConnReqUsername
+	}
+	if password == "" {
+		password = h.acsConfig.ConnReqPassword
+	}
 
-	ok, err := auth.Auth(h.acsConfig.ConnReqUsername, h.acsConfig.ConnReqPassword, cpe.ConnectionRequestURL)
+	log.Printf("[ConnReq] --> CPE: %s, URL: %s", cpe.SerialNumber, cpe.ConnectionRequestURL)
+	log.Printf("[ConnReq] Using credentials - user: %q (source: %s)", username, func() string {
+		if cpe.Username != "" {
+			return "per-CPE from Inform"
+		}
+		return "global config"
+	}())
+
+	ok, err := auth.Auth(username, password, cpe.ConnectionRequestURL)
 	if !ok {
 		cpe.Queue.Dequeue()
 		log.Println("Error while authenticating to CPE, err:", err)
