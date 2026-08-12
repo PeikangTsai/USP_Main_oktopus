@@ -87,6 +87,8 @@ services:
     container_name: stomp
     ports:
       - 61613:61613
+    env_file:
+      - .env.stomp
     networks:
       usp_network:
         ipv4_address: 172.16.235.8
