@@ -23,9 +23,12 @@ type Nats struct {
 
 type Acs struct {
 	Port                string
-	Tls                 bool
-	TlsPort             bool
-	NoTls               bool
+	/* Peikang add TLS port START */
+	TlsPort             string
+	EnableTls           bool
+	TlsCert             string
+	TlsKey              string
+	/* Peikang add TLS port END */
 	KeepAliveInterval   time.Duration
 	Username            string
 	Password            string
@@ -54,11 +57,19 @@ func NewConfig() *Config {
 
 	natsUrl := flag.String("nats_url", lookupEnvOrString("NATS_URL", "nats://localhost:4222"), "url for nats server")
 	natsName := flag.String("nats_name", lookupEnvOrString("NATS_NAME", "adapter"), "name for nats client")
+	//  this is NATS certificate and key for TLS connection, not ACS certificate and key
 	natsEnableTls := flag.Bool("nats_enable_tls", lookupEnvOrBool("NATS_ENABLE_TLS", false), "enbale TLS to nats server")
 	clientCrt := flag.String("client_crt", lookupEnvOrString("CLIENT_CRT", "cert.pem"), "client certificate file to TLS connection")
 	clientKey := flag.String("client_key", lookupEnvOrString("CLIENT_KEY", "key.pem"), "client key file to TLS connection")
 	serverCA := flag.String("server_ca", lookupEnvOrString("SERVER_CA", "rootCA.pem"), "server CA file to TLS connection")
+	//  this is NATS certificate and key for TLS connection, not ACS certificate and key
 	acsPort := flag.String("acs_port", lookupEnvOrString("ACS_PORT", ":9292"), "port for acs server")
+	/* Peikang add TLS port START */
+	acsTlsPort := flag.String("acs_tls_port", lookupEnvOrString("ACS_TLS_PORT", ":9293"), "TLS port for acs server")
+	acsEnableTls := flag.Bool("acs_enable_tls", lookupEnvOrBool("ACS_ENABLE_TLS", false), "enable HTTPS for acs server")
+	acsTlsCert := flag.String("acs_tls_cert", lookupEnvOrString("ACS_TLS_CERT", ""), "TLS certificate file for acs HTTPS")
+	acsTlsKey := flag.String("acs_tls_key", lookupEnvOrString("ACS_TLS_KEY", ""), "TLS key file for acs HTTPS")
+	/* Peikang add TLS port END */
 	acsRoute := flag.String("acs_route", lookupEnvOrString("ACS_ROUTE", "/acs"), "route for acs server")
 	connReqUser := flag.String("connrq_user", lookupEnvOrString("CONN_RQ_USER", ""), "Connection Request Username")
 	connReqPasswd := flag.String("connrq_passwd", lookupEnvOrString("CONN_RQ_PASSWD", ""), "Connection Request Password")
@@ -102,6 +113,12 @@ func NewConfig() *Config {
 		},
 		Acs: Acs{
 			Port:                *acsPort,
+			/* Peikang add TLS port START */
+            TlsPort:             *acsTlsPort,
+            EnableTls:           *acsEnableTls,
+            TlsCert:             *acsTlsCert,
+            TlsKey:              *acsTlsKey,
+			/* Peikang add TLS port END */
 			Route:               *acsRoute,
 			Username:            *acsUsername,
 			Password:            *acsPassword,

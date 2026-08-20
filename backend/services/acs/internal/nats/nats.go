@@ -33,6 +33,7 @@ func StartNatsClient(c config.Nats) NatsActions {
 
 	for {
 		nc, err = nats.Connect(c.Url, opts...)
+		log.Printf("NATS connection error: %v", err)
 		if err != nil {
 			time.Sleep(5 * time.Second)
 			continue

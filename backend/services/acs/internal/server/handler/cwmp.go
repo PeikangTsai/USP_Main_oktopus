@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"oktopUSP/backend/services/acs/internal/auth"
 	"oktopUSP/backend/services/acs/internal/cwmp"
+	"strings"
 	"time"
 
 	"github.com/oleiade/lane"
@@ -55,33 +58,25 @@ func (h *Handler) CwmpHandler(w http.ResponseWriter, r *http.Request) {
 		var Inform cwmp.CWMPInform
 		xml.Unmarshal(tmp, &Inform)
 
-		var addr string
-		if r.Header.Get("X-Real-Ip") != "" {
-			addr = r.Header.Get("X-Real-Ip")
-		} else {
-			addr = r.RemoteAddr
-		}
+		addr := peerIP(r)
 
 		sn := Inform.DeviceId.SerialNumber
 
-		if _, exists := h.Cpes[sn]; !exists {
+		if cpe, exists = h.Cpes[sn]; !exists {
 			log.Println("New device: " + sn)
-			h.Cpes[sn] = CPE{
-				SerialNumber:         sn,
-				LastConnection:       time.Now(),
-				SoftwareVersion:      Inform.GetSoftwareVersion(),
-				HardwareVersion:      Inform.GetHardwareVersion(),
-				ExternalIPAddress:    addr,
-				ConnectionRequestURL: Inform.GetConnectionRequest(),
-				OUI:                  Inform.DeviceId.OUI,
-				Queue:                lane.NewQueue(),
-				DataModel:            Inform.GetDataModelType(),
-				Username:             Inform.GetConnectionRequestUsername(),
-				Password:             Inform.GetConnectionRequestPassword(),
+			cpe = CPE{
+				SerialNumber:    sn,
+				SoftwareVersion: Inform.GetSoftwareVersion(),
+				HardwareVersion: Inform.GetHardwareVersion(),
+				OUI:             Inform.DeviceId.OUI,
+				Queue:           lane.NewQueue(),
+				DataModel:       Inform.GetDataModelType(),
 			}
+			h.Cpes[sn] = cpe
 			h.pub(NATS_CWMP_SUBJECT_PREFIX+sn+".info", tmp)
 		}
 
+		cpe.ExternalIPAddress = addr
 		cpe.ConnectionRequestURL = Inform.GetConnectionRequest()
 		cpe.Username = Inform.GetConnectionRequestUsername()
 		cpe.Password = Inform.GetConnectionRequestPassword()
@@ -164,7 +159,9 @@ func (h *Handler) ConnectionRequest(cpe CPE) error {
 		password = h.acsConfig.ConnReqPassword
 	}
 
-	log.Printf("[ConnReq] --> CPE: %s, URL: %s", cpe.SerialNumber, cpe.ConnectionRequestURL)
+	connReqURL := reachableConnReqURL(cpe.ConnectionRequestURL, cpe.ExternalIPAddress)
+
+	log.Printf("[ConnReq] --> CPE: %s, URL: %s", cpe.SerialNumber, connReqURL)
 	log.Printf("[ConnReq] Using credentials - user: %q (source: %s)", username, func() string {
 		if cpe.Username != "" {
 			return "per-CPE from Inform"
@@ -172,7 +169,7 @@ func (h *Handler) ConnectionRequest(cpe CPE) error {
 		return "global config"
 	}())
 
-	ok, err := auth.Auth(username, password, cpe.ConnectionRequestURL)
+	ok, err := auth.Auth(username, password, connReqURL)
 	if !ok {
 		cpe.Queue.Dequeue()
 		log.Println("Error while authenticating to CPE, err:", err)
@@ -181,6 +178,53 @@ func (h *Handler) ConnectionRequest(cpe CPE) error {
 	}
 
 	return err
+}
+
+// peerIP returns the CPE's address as seen by the ACS, without the source port.
+func peerIP(r *http.Request) string {
+	if ip := r.Header.Get("X-Real-Ip"); ip != "" {
+		return ip
+	}
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return r.RemoteAddr
+}
+
+// reachableConnReqURL replaces the host of the ConnectionRequestURL reported by
+// the CPE when that host is not something the ACS can dial. CPEs that fail to
+// resolve their own interface address (e.g. easycwmp with a misconfigured
+// 'interface' option) report the wildcard bind address instead, which would make
+// the ACS connect to itself. The address the Inform came from is used instead.
+func reachableConnReqURL(rawURL, cpeAddr string) string {
+	if rawURL == "" || cpeAddr == "" {
+		return rawURL
+	}
+
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		log.Printf("[ConnReq] Could not parse ConnectionRequestURL %q: %v", rawURL, err)
+		return rawURL
+	}
+
+	host := u.Hostname()
+	switch host {
+	case "", "0.0.0.0", "::", "127.0.0.1", "::1", "localhost":
+	default:
+		return rawURL
+	}
+
+	if port := u.Port(); port != "" {
+		u.Host = net.JoinHostPort(cpeAddr, port)
+	} else if strings.Contains(cpeAddr, ":") {
+		u.Host = "[" + cpeAddr + "]"
+	} else {
+		u.Host = cpeAddr
+	}
+
+	log.Printf("[ConnReq] CPE reported unreachable host %q, dialing %q instead", host, u.Host)
+
+	return u.String()
 }
 
 func msgAnswer(

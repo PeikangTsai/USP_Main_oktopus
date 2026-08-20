@@ -199,6 +199,7 @@ services:
     container_name: acs
     ports:
       - 9292:9292
+      - 9293:9293
     env_file:
       - .env.acs
     volumes:
@@ -212,7 +213,7 @@ services:
     image: nginx:latest
     container_name: nginx
     ports:
-      - 6674:80
+      - 6674:6674
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf
     extra_hosts:

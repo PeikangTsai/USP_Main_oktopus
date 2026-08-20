@@ -1,0 +1,17 @@
+[req]
+default_bits = 2048
+prompt = no
+distinguished_name = dn
+req_extensions = v3_req
+
+[dn]
+CN = 172.16.0.3
+O = Compal Broadband Networks
+C = TW
+
+[v3_req]
+subjectAltName = @alt_names
+
+[alt_names]
+IP.1 = 172.16.0.3
+DNS.1 = acs
