@@ -120,14 +120,15 @@ func (h *NatsAuthHook) Init(c any) error {
 func (h *NatsAuthHook) OnConnectAuthenticate(cl *mqtt.Client, pk packets.Packet) bool {
 
 	username := string(pk.Connect.Username)
+	lookupKey := normalizeUsername(username)
 
-	entry, err := h.kv.Get(context.TODO(), username)
+	entry, err := h.kv.Get(context.TODO(), lookupKey)
 	if err != nil {
 		if err == jetstream.ErrKeyNotFound {
-			log.Println("user access not found, blocked user:", username)
+			log.Printf("auth failed: user access not found, username=%q key=%q client=%q remote=%s", username, lookupKey, cl.ID, cl.Net.Remote)
 			return false
 		}
-		log.Println("error getting key value: ", err)
+		log.Printf("auth failed: error getting key value: %v, username=%q key=%q client=%q remote=%s", err, username, lookupKey, cl.ID, cl.Net.Remote)
 		return false
 	}
 
@@ -135,17 +136,28 @@ func (h *NatsAuthHook) OnConnectAuthenticate(cl *mqtt.Client, pk packets.Packet)
 		return true
 	}
 
+	log.Printf("auth failed: password mismatch, username=%q key=%q client=%q remote=%s", username, lookupKey, cl.ID, cl.Net.Remote)
 	return false
 }
 
+func endpointIDFromClient(cl *mqtt.Client) string {
+	for _, up := range cl.Properties.Props.User {
+		if up.Key == "usp-endpoint-id" {
+			return up.Val
+		}
+	}
+	return ""
+}
+											
 func (h *NatsAuthHook) OnACLCheck(cl *mqtt.Client, topic string, write bool) bool {
 
 	username := string(cl.Properties.Username)
+	lookupKey := normalizeUsername(username)
 
-	_, err := h.kv.Get(context.TODO(), username)
+	_, err := h.kv.Get(context.TODO(), lookupKey)
 	if err != nil {
 		if err == jetstream.ErrKeyNotFound {
-			log.Println("user access not found, blocked user:", username)
+			log.Println("user access not found, blocked user:", lookupKey)
 			return false
 		}
 		log.Println("error getting key value: ", err)
@@ -156,13 +168,16 @@ func (h *NatsAuthHook) OnACLCheck(cl *mqtt.Client, topic string, write bool) boo
 		return true
 	}
 
+	endpointID := endpointIDFromClient(cl)
+
 	if !write {
-		deviceAllowedTopics := []string{
-			"oktopus/usp/v1/agent/" + username,
+		allowed := []string{"oktopus/usp/v1/agent/" + username}
+		if endpointID != "" {
+			allowed = append(allowed, "oktopus/usp/v1/agent/"+endpointID)
 		}
-		for _, allowedTopic := range deviceAllowedTopics {
-			_, ok := auth.MatchTopic(allowedTopic, topic)
-			if ok {
+		for _, a := range allowed {
+			log.Printf("[agent]DEBUG ACL check: allowedTopic=%q topic=%q", a, topic)
+			if _, ok := auth.MatchTopic(a, topic); ok {
 				return true
 			}
 		}
@@ -173,8 +188,13 @@ func (h *NatsAuthHook) OnACLCheck(cl *mqtt.Client, topic string, write bool) boo
 		deviceAllowedTopics := []string{
 			"oktopus/usp/v1/controller",
 			"oktopus/usp/v1/api/" + username,
+			"oktopus/usp/v1/api/" + endpointID,
+		}
+		if endpointID != "" {
+			    deviceAllowedTopics = append(deviceAllowedTopics, "oktopus/usp/v1/api/"+endpointID)
 		}
 		for _, allowedTopic := range deviceAllowedTopics {
+			log.Printf("[controller/api]DEBUG ACL check: allowedTopic=%q topic=%q", allowedTopic, topic)
 			_, ok := auth.MatchTopic(allowedTopic, topic)
 			if ok {
 				return true
@@ -183,4 +203,12 @@ func (h *NatsAuthHook) OnACLCheck(cl *mqtt.Client, topic string, write bool) boo
 	}
 
 	return false
+}
+
+func normalizeUsername(username string) string {
+    if strings.Contains(username, "::") {
+        parts := strings.Split(username, "-")
+        return parts[len(parts)-1]
+    }
+    return username
 }
