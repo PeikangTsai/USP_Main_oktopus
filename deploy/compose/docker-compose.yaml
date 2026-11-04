@@ -58,6 +58,7 @@ services:
     ports:
       - 1883:1883
       - 8883:8883
+      - 9001:80
     env_file:
       - .env.mqtt
     volumes:
@@ -213,9 +214,11 @@ services:
     image: nginx:latest
     container_name: nginx
     ports:
+      - 443:443
       - 6674:6674
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./ssl:/etc/nginx/ssl
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
